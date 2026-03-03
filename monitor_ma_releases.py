@@ -457,7 +457,7 @@ def main():
         # CMO Keywords
         is_cmo = (
             ('chief marketing officer' in title_lower or ' cmo ' in title_lower) and
-            ('appoint' in title_lower or 'name' in title_lower or 'join' in title_lower or 'hire' in title_lower)
+            ('appoint' in title_lower or 'name' in title_lower or 'join' in title_lower or 'hire' in title_lower or 'promot' in title_lower)
         )
         
         if is_ma:
