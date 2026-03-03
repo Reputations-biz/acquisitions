@@ -127,8 +127,9 @@ def get_existing_entries_from_report(report_path):
                 
                 # Attempt to guess category from title (for existing entries)
                 category = 'M&A'
-                if 'chief marketing officer' in title.lower() or ' cmo ' in title.lower():
-                    category = 'CMO'
+                title_lower = title.lower()
+                if 'appoint' in title_lower or 'name' in title_lower or 'join' in title_lower or 'hire' in title_lower or 'promot' in title_lower:
+                    category = 'Executive Move'
 
                 entries.append({
                     'title': title,
@@ -369,11 +370,11 @@ def generate_markdown_report(items, date_str):
     
     # Separate items by category
     ma_deals = [i for i in items if i.get('category', 'M&A') == 'M&A']
-    cmo_moves = [i for i in items if i.get('category') == 'CMO']
+    exec_moves = [i for i in items if i.get('category') == 'Executive Move']
     
     report = f"# Daily Market Monitor - {date_str}\n\n"
     report += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    report += f"**Summary:** {len(ma_deals)} M&A Deals | {len(cmo_moves)} CMO Appointments\n\n"
+    report += f"**Summary:** {len(ma_deals)} M&A Deals | {len(exec_moves)} Executive Moves\n\n"
     
     # --- Section 1: M&A Activity ---
     if ma_deals:
@@ -381,13 +382,13 @@ def generate_markdown_report(items, date_str):
         for item in ma_deals:
             report += _format_item(item, date_str)
             
-    # --- Section 2: Executive Moves (CMO) ---
-    if cmo_moves:
-        report += "## 👔 Executive Moves (CMO)\n\n"
-        for item in cmo_moves:
+    # --- Section 2: Executive Moves ---
+    if exec_moves:
+        report += "## 👔 Executive Moves\n\n"
+        for item in exec_moves:
             report += _format_item(item, date_str)
             
-    if not ma_deals and not cmo_moves:
+    if not ma_deals and not exec_moves:
         report += "No relevant activity found today.\n"
         
     return report
@@ -454,16 +455,15 @@ def main():
             ('dividend' not in title_lower and 'earnings' not in title_lower)
         )
         
-        # CMO Keywords
-        is_cmo = (
-            ('chief marketing officer' in title_lower or ' cmo ' in title_lower) and
-            ('appoint' in title_lower or 'name' in title_lower or 'join' in title_lower or 'hire' in title_lower or 'promot' in title_lower)
+        # Executive Move Keywords (Appoints, Names, Joins, Hires, Promotes)
+        is_exec_move = (
+            'appoint' in title_lower or 'name' in title_lower or 'join' in title_lower or 'hire' in title_lower or 'promot' in title_lower
         )
         
         if is_ma:
             category = 'M&A'
-        elif is_cmo:
-            category = 'CMO'
+        elif is_exec_move:
+            category = 'Executive Move'
         
         if not category:
             log(f"Skipping non-relevant: {release['title'][:30]}...")
