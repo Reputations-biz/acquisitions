@@ -125,12 +125,18 @@ def get_existing_entries_from_report(report_path):
                 if "**Contact Information:**" in section:
                     contacts_block = section.split("**Contact Information:**")[1].strip()
                 
+                # Attempt to guess category from title (for existing entries)
+                category = 'M&A'
+                if 'chief marketing officer' in title.lower() or ' cmo ' in title.lower():
+                    category = 'CMO'
+
                 entries.append({
                     'title': title,
                     'url': url,
                     'summary': summary,
                     'contacts_block': contacts_block,
-                    'raw_section': section
+                    'raw_section': section,
+                    'category': category
                 })
                 
         log(f"Found {len(entries)} existing entries in report")
@@ -358,44 +364,65 @@ def extract_contact_info(pr_data, driver):
         log(f"  Error extracting contacts: {e}")
         return None
 
-def generate_markdown_report(acquisitions, date_str):
-    """Generate Markdown report content"""
-    report = f"# M&A Acquisitions Report - {date_str}\n\n"
-    report += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    report += f"Total Acquisitions: {len(acquisitions)}\n\n"
+def generate_markdown_report(items, date_str):
+    """Generate Markdown report content with categories"""
     
-    for acq in acquisitions:
-        report += f"## {acq['title']}\n\n"
-        report += f"**Date:** {date_str}\n"
-        report += f"**Link:** [{acq['title']}]({acq['url']})\n\n"
-        report += f"**Summary:** {acq['summary']}\n\n"
-        
-        report += "**Contact Information:**\n"
-        
-        if 'contacts_block' in acq and acq['contacts_block']:
-            # Use existing block if available (from existing entries)
-            report += f"{acq['contacts_block']}\n"
-        elif 'contacts' in acq and acq['contacts']:
-            for contact in acq['contacts']:
-                if 'raw_block' in contact:
-                    clean_block = contact['raw_block'].replace('**', '').replace('##', '')
-                    report += f"{clean_block}\n\n"
-                else:
-                    name = contact.get('name', 'Media Contact')
-                    email = contact.get('email', '')
-                    phone = contact.get('phone', '')
-                    report += f"{name}\n"
-                    if email:
-                        report += f"{email}\n"
-                    if phone:
-                        report += f"Tel: {phone}\n"
-                    report += "\n"
-        else:
-            report += "None found\n"
+    # Separate items by category
+    ma_deals = [i for i in items if i.get('category', 'M&A') == 'M&A']
+    cmo_moves = [i for i in items if i.get('category') == 'CMO']
+    
+    report = f"# Daily Market Monitor - {date_str}\n\n"
+    report += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    report += f"**Summary:** {len(ma_deals)} M&A Deals | {len(cmo_moves)} CMO Appointments\n\n"
+    
+    # --- Section 1: M&A Activity ---
+    if ma_deals:
+        report += "## 💰 M&A Activity\n\n"
+        for item in ma_deals:
+            report += _format_item(item, date_str)
             
-        report += "\n---\n\n"
+    # --- Section 2: Executive Moves (CMO) ---
+    if cmo_moves:
+        report += "## 👔 Executive Moves (CMO)\n\n"
+        for item in cmo_moves:
+            report += _format_item(item, date_str)
+            
+    if not ma_deals and not cmo_moves:
+        report += "No relevant activity found today.\n"
         
     return report
+
+def _format_item(item, date_str):
+    """Helper to format a single item block"""
+    block = f"### {item['title']}\n\n"
+    block += f"**Date:** {date_str}\n"
+    block += f"**Link:** [{item['title']}]({item['url']})\n\n"
+    block += f"**Summary:** {item['summary']}\n\n"
+    
+    block += "**Contact Information:**\n"
+    
+    if 'contacts_block' in item and item['contacts_block']:
+        block += f"{item['contacts_block']}\n"
+    elif 'contacts' in item and item['contacts']:
+        for contact in item['contacts']:
+            if 'raw_block' in contact:
+                clean_block = contact['raw_block'].replace('**', '').replace('##', '')
+                block += f"{clean_block}\n\n"
+            else:
+                name = contact.get('name', 'Media Contact')
+                email = contact.get('email', '')
+                phone = contact.get('phone', '')
+                block += f"{name}\n"
+                if email:
+                    block += f"{email}\n"
+                if phone:
+                    block += f"{phone}\n"
+                block += "\n"
+    else:
+        block += "None found\n\n"
+        
+    block += "---\n\n"
+    return block
 
 def main():
     log("Starting M&A Press Release Monitor (Robust Version)")
@@ -418,14 +445,31 @@ def main():
         title_lower = release['title'].lower()
         summary_lower = release['summary'].lower()
         
-        is_relevant = (
+        # Determine Category
+        category = None
+        
+        # M&A Keywords
+        is_ma = (
             ('acqui' in title_lower or 'merger' in title_lower or 'invest' in title_lower or 'sale' in title_lower) and
             ('dividend' not in title_lower and 'earnings' not in title_lower)
         )
         
-        if not is_relevant:
+        # CMO Keywords
+        is_cmo = (
+            ('chief marketing officer' in title_lower or ' cmo ' in title_lower) and
+            ('appoint' in title_lower or 'name' in title_lower or 'join' in title_lower or 'hire' in title_lower)
+        )
+        
+        if is_ma:
+            category = 'M&A'
+        elif is_cmo:
+            category = 'CMO'
+        
+        if not category:
             log(f"Skipping non-relevant: {release['title'][:30]}...")
             continue
+            
+        release['category'] = category
             
         norm_url = normalize_url(release['url'])
         if norm_url in existing_urls:
