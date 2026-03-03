@@ -378,13 +378,13 @@ def generate_markdown_report(items, date_str):
     
     # --- Section 1: M&A Activity ---
     if ma_deals:
-        report += "## 💰 M&A Activity\n\n"
+        report += "### 💰 M&A Activity\n\n"
         for item in ma_deals:
             report += _format_item(item, date_str)
             
     # --- Section 2: Executive Moves ---
     if exec_moves:
-        report += "## 👔 Executive Moves\n\n"
+        report += "### 👔 Executive Moves\n\n"
         for item in exec_moves:
             report += _format_item(item, date_str)
             
@@ -395,7 +395,7 @@ def generate_markdown_report(items, date_str):
 
 def _format_item(item, date_str):
     """Helper to format a single item block"""
-    block = f"### {item['title']}\n\n"
+    block = f"## {item['title']}\n\n"
     block += f"**Date:** {date_str}\n"
     block += f"**Link:** [{item['title']}]({item['url']})\n\n"
     block += f"**Summary:** {item['summary']}\n\n"
