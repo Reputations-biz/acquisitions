@@ -380,7 +380,7 @@ class GCLID_Sheets {
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-        $range          = $sheet_name . '!A1:H1';
+        $range          = $sheet_name . '!A1:I1';
         $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range );
 
         $response = wp_remote_get( $url, array(
@@ -397,10 +397,11 @@ class GCLID_Sheets {
         if ( empty( $body['values'] ) ) {
             // Write headers matching the exact column layout in the spreadsheet:
             // A=GCLID, B=FBCLID, C=MSCLKID, D=utm_source,
-            // E=utm_medium, F=utm_campaign, G=utm_term, H=utm_content
+            // E=utm_medium, F=utm_campaign, G=utm_term, H=utm_content, I=ip_address
             $headers = array( array(
                 'GCLID', 'FBCLID', 'MSCLKID',
                 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+                'ip_address',
             ) );
             return $this->put_values( $range, $headers );
         }
@@ -458,7 +459,7 @@ class GCLID_Sheets {
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-        $range          = $sheet_name . '!A:H';
+        $range          = $sheet_name . '!A:I';
         $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range ) . ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
 
         $response = wp_remote_post( $url, array(
@@ -506,11 +507,18 @@ class GCLID_Sheets {
      * @return array Row values
      */
     public function capture_to_row( $capture ) {
-        // Column order matches the spreadsheet exactly (8 columns, no gaps):
+        // Column order matches the spreadsheet exactly (9 columns, no gaps):
         // A=GCLID, B=FBCLID, C=MSCLKID,
-        // D=utm_source, E=utm_medium, F=utm_campaign, G=utm_term, H=utm_content
+        // D=utm_source, E=utm_medium, F=utm_campaign, G=utm_term, H=utm_content,
+        // I=ip_address (blank if IP logging is disabled or IP could not be detected)
         // Only the raw value is written — no variable name prefix.
         // If a parameter was not present in the URL, the cell is left blank ('').
+        // IP detection failure never prevents the row from being inserted.
+        $ip_logging_enabled = get_option( 'gclid_tracker_enable_ip_logging', '1' ) === '1';
+        $ip_address         = ( $ip_logging_enabled && ! empty( $capture['ip_address'] ) )
+                                ? $capture['ip_address']
+                                : '';
+
         return array(
             $capture['gclid']        ?? '',   // A: GCLID
             $capture['fbclid']       ?? '',   // B: FBCLID
@@ -520,6 +528,7 @@ class GCLID_Sheets {
             $capture['utm_campaign'] ?? '',   // F: utm_campaign
             $capture['utm_term']     ?? '',   // G: utm_term
             $capture['utm_content']  ?? '',   // H: utm_content
+            $ip_address,                      // I: ip_address (blank if disabled or undetected)
         );
     }
 
