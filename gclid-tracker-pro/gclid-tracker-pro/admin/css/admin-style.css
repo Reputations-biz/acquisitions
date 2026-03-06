@@ -1,0 +1,520 @@
+/**
+ * GCLID Tracker Pro - Admin Styles
+ *
+ * @package GCLID_Tracker_Pro
+ * @since 1.0.0
+ */
+
+/* ========================================
+   General Layout
+   ======================================== */
+
+.gclid-tracker-wrap {
+    max-width: 1400px;
+}
+
+.gclid-tracker-wrap h1 {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    font-size: 23px;
+    font-weight: 400;
+}
+
+/* ========================================
+   Stats Cards
+   ======================================== */
+
+.gclid-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.gclid-stat-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: box-shadow 0.2s ease;
+}
+
+.gclid-stat-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.gclid-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.gclid-stat-icon .dashicons {
+    color: #fff;
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+}
+
+.gclid-stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.gclid-stat-number {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #1d2327;
+}
+
+.gclid-stat-label {
+    font-size: 13px;
+    color: #646970;
+    margin-top: 2px;
+}
+
+/* ========================================
+   Quick Actions
+   ======================================== */
+
+.gclid-quick-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.gclid-quick-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ========================================
+   Charts
+   ======================================== */
+
+.gclid-charts-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.gclid-chart-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.gclid-chart-card h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 15px;
+    color: #1d2327;
+}
+
+.gclid-chart-wide {
+    grid-column: 1 / -1;
+}
+
+.gclid-chart-card canvas {
+    max-height: 300px;
+}
+
+.gclid-no-data {
+    text-align: center;
+    color: #646970;
+    padding: 20px;
+    font-style: italic;
+}
+
+/* ========================================
+   Settings Page — Sections
+   ======================================== */
+
+.gclid-settings-section {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.gclid-settings-section h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f1;
+    font-size: 18px;
+}
+
+.gclid-settings-section .form-table {
+    margin-top: 0;
+}
+
+.gclid-settings-section .form-table th {
+    padding-left: 0;
+    width: 250px;
+}
+
+/* ========================================
+   OAuth Connection UI
+   ======================================== */
+
+.gclid-oauth-status-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 15px;
+}
+
+.gclid-oauth-status-badge.connected {
+    background: #edfaef;
+    border: 1px solid #46b450;
+}
+
+.gclid-oauth-status-badge.connected .dashicons {
+    color: #46b450;
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.gclid-connected-email {
+    font-size: 13px;
+    color: #3c434a;
+    margin-top: 2px;
+    display: block;
+}
+
+.gclid-oauth-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.gclid-disconnect-btn {
+    color: #b32d2e !important;
+    border-color: #b32d2e !important;
+}
+
+.gclid-disconnect-btn:hover {
+    background: #b32d2e !important;
+    color: #fff !important;
+}
+
+.gclid-connect-cta {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.gclid-connect-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px !important;
+    padding: 10px 24px !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+
+.gclid-connect-cta .description {
+    margin-top: 10px;
+    color: #646970;
+}
+
+/* Setup steps */
+.gclid-setup-steps {
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 16px 16px 16px 24px;
+    margin: 12px 0 20px;
+}
+
+.gclid-setup-steps h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.gclid-setup-steps ol {
+    margin-bottom: 0;
+}
+
+.gclid-setup-steps li {
+    margin-bottom: 8px;
+    line-height: 1.6;
+}
+
+.gclid-redirect-uri {
+    display: inline-block;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    word-break: break-all;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.gclid-copy-btn {
+    vertical-align: middle;
+}
+
+/* Test connection result */
+.gclid-test-result {
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.gclid-test-result.success {
+    color: #46b450;
+}
+
+.gclid-test-result.error {
+    color: #dc3232;
+}
+
+/* Toggle secret button */
+#gclid-toggle-secret {
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* ========================================
+   Capture Log Table
+   ======================================== */
+
+.gclid-log-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 8px;
+}
+
+.gclid-log-toolbar-left,
+.gclid-log-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.gclid-search-form {
+    display: flex;
+    gap: 4px;
+}
+
+.gclid-search-input {
+    min-width: 300px;
+    padding: 4px 10px;
+}
+
+.gclid-bulk-select {
+    min-width: 140px;
+}
+
+.gclid-results-info {
+    color: #646970;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.gclid-captures-table {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.gclid-captures-table th {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.gclid-captures-table th a {
+    text-decoration: none;
+    color: #1d2327;
+}
+
+.gclid-captures-table th a:hover {
+    color: #2271b1;
+}
+
+.gclid-captures-table td {
+    vertical-align: middle;
+}
+
+.gclid-code {
+    background: #f0f0f1;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.gclid-empty {
+    color: #a7aaad;
+}
+
+.gclid-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #fff;
+}
+
+.gclid-badge-fb {
+    background: #1877f2;
+}
+
+.gclid-badge-ms {
+    background: #00a4ef;
+}
+
+.gclid-sync-status {
+    display: inline-flex;
+    align-items: center;
+}
+
+.gclid-synced .dashicons {
+    color: #46b450;
+}
+
+.gclid-unsynced .dashicons {
+    color: #dcdcde;
+}
+
+.gclid-delete-btn {
+    color: #b32d2e !important;
+    border-color: #b32d2e !important;
+}
+
+.gclid-delete-btn:hover {
+    background: #b32d2e !important;
+    color: #fff !important;
+}
+
+/* ========================================
+   Pagination
+   ======================================== */
+
+.gclid-pagination {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.gclid-pagination .page-numbers {
+    display: inline-block;
+    padding: 6px 12px;
+    margin: 0 2px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #2271b1;
+    font-size: 13px;
+}
+
+.gclid-pagination .page-numbers.current {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+    font-weight: 600;
+}
+
+.gclid-pagination .page-numbers:hover:not(.current) {
+    background: #f6f7f7;
+    border-color: #2271b1;
+}
+
+/* ========================================
+   Responsive
+   ======================================== */
+
+@media screen and (max-width: 782px) {
+    .gclid-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .gclid-charts-row {
+        grid-template-columns: 1fr;
+    }
+
+    .gclid-log-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .gclid-search-input {
+        min-width: auto;
+        width: 100%;
+    }
+
+    .gclid-settings-section .form-table th {
+        width: auto;
+    }
+
+    .gclid-oauth-actions {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .gclid-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ========================================
+   Loading Spinner
+   ======================================== */
+
+.gclid-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #2271b1;
+    border-radius: 50%;
+    animation: gclid-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+
+@keyframes gclid-spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
