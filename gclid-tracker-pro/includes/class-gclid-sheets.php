@@ -380,7 +380,7 @@ class GCLID_Sheets {
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-        $range          = $sheet_name . '!A1:I1';
+        $range          = $sheet_name . '!A1:J1';
         $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range );
 
         $response = wp_remote_get( $url, array(
@@ -401,7 +401,7 @@ class GCLID_Sheets {
             $headers = array( array(
                 'GCLID', 'FBCLID', 'MSCLKID',
                 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-                'ip_address',
+                'ip_address', 'timestamp',
             ) );
             return $this->put_values( $range, $headers );
         }
@@ -459,7 +459,7 @@ class GCLID_Sheets {
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-        $range          = $sheet_name . '!A:I';
+        $range          = $sheet_name . '!A:J';
         $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range ) . ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
 
         $response = wp_remote_post( $url, array(
@@ -507,17 +507,35 @@ class GCLID_Sheets {
      * @return array Row values
      */
     public function capture_to_row( $capture ) {
-        // Column order matches the spreadsheet exactly (9 columns, no gaps):
+        // Column order matches the spreadsheet exactly (10 columns, no gaps):
         // A=GCLID, B=FBCLID, C=MSCLKID,
         // D=utm_source, E=utm_medium, F=utm_campaign, G=utm_term, H=utm_content,
         // I=ip_address (blank if IP logging is disabled or IP could not be detected)
+        // J=timestamp (Pacific Time, format: MM/DD/YYYY HH:MM AM/PM PT)
         // Only the raw value is written — no variable name prefix.
         // If a parameter was not present in the URL, the cell is left blank ('').
         // IP detection failure never prevents the row from being inserted.
+
+        // IP address: only write if logging is enabled and value is present
         $ip_logging_enabled = get_option( 'gclid_tracker_enable_ip_logging', '1' ) === '1';
         $ip_address         = ( $ip_logging_enabled && ! empty( $capture['ip_address'] ) )
                                 ? $capture['ip_address']
                                 : '';
+
+        // Timestamp: convert stored UTC/site-time value to Pacific Time
+        // Uses America/Los_Angeles which auto-handles PST (UTC-8) and PDT (UTC-7)
+        $timestamp = '';
+        if ( ! empty( $capture['captured_at'] ) ) {
+            try {
+                $dt = new DateTime( $capture['captured_at'], new DateTimeZone( 'UTC' ) );
+                $dt->setTimezone( new DateTimeZone( 'America/Los_Angeles' ) );
+                // Format: 03/06/2026 08:17 AM PT
+                $abbr      = $dt->format( 'T' ); // PST or PDT
+                $timestamp = $dt->format( 'm/d/Y h:i A' ) . ' ' . $abbr;
+            } catch ( Exception $e ) {
+                $timestamp = $capture['captured_at']; // Fallback to raw value
+            }
+        }
 
         return array(
             $capture['gclid']        ?? '',   // A: GCLID
@@ -529,6 +547,7 @@ class GCLID_Sheets {
             $capture['utm_term']     ?? '',   // G: utm_term
             $capture['utm_content']  ?? '',   // H: utm_content
             $ip_address,                      // I: ip_address (blank if disabled or undetected)
+            $timestamp,                       // J: timestamp in Pacific Time
         );
     }
 

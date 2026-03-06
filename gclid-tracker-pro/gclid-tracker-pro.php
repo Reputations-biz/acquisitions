@@ -3,7 +3,7 @@
  * Plugin Name: GCLID Tracker Pro
  * Plugin URI: https://github.com/bdouglas73/acquisitions
  * Description: Captures Google Click ID (GCLID) and UTM parameters from all website visitors and syncs the data to a Google Spreadsheet in real-time. Connect your Google account with one click — no service accounts or JSON files required. Includes a full admin dashboard, local logging, CSV export, and data retention management.
- * Version: 1.2.2
+ * Version: 1.2.3
  * Author: Brian Douglas
  * Author URI: https://github.com/bdouglas73
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'GCLID_TRACKER_VERSION', '1.2.2' );
+define( 'GCLID_TRACKER_VERSION', '1.2.3' );
 define( 'GCLID_TRACKER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GCLID_TRACKER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'GCLID_TRACKER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

@@ -130,7 +130,7 @@ class GCLID_Capture {
             'device_type'  => $ua_info['device_type'],
             'browser'      => $ua_info['browser'],
             'os'           => $ua_info['os'],
-            'captured_at'  => current_time( 'mysql' ),
+            'captured_at'  => current_time( 'mysql', true ), // Store as UTC; converted to PT on output
         );
 
         // Insert into database
