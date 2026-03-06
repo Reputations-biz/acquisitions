@@ -2,8 +2,10 @@
 /**
  * Google Sheets API integration for GCLID Tracker Pro
  *
- * Handles authentication via Service Account and
- * appending captured data rows to Google Spreadsheets.
+ * Handles OAuth 2.0 authorization code flow (web server flow).
+ * The user clicks "Connect with Google", approves access on Google's
+ * consent screen, and is redirected back with an authorization code
+ * that is exchanged for access + refresh tokens stored in wp_options.
  *
  * @package GCLID_Tracker_Pro
  * @since 1.0.0
@@ -16,52 +18,52 @@ if ( ! defined( 'ABSPATH' ) ) {
 class GCLID_Sheets {
 
     /**
+     * Google OAuth2 endpoints
+     */
+    private $auth_url    = 'https://accounts.google.com/o/oauth2/v2/auth';
+    private $token_url   = 'https://oauth2.googleapis.com/token';
+    private $revoke_url  = 'https://oauth2.googleapis.com/revoke';
+
+    /**
      * Google Sheets API base URL
-     *
-     * @var string
      */
     private $api_base = 'https://sheets.googleapis.com/v4/spreadsheets';
 
     /**
-     * OAuth2 token endpoint
-     *
-     * @var string
+     * Required OAuth scopes
      */
-    private $token_url = 'https://oauth2.googleapis.com/token';
+    private $scopes = array(
+        'https://www.googleapis.com/auth/spreadsheets',
+    );
 
     /**
-     * Service account credentials
+     * The WordPress admin redirect URI for OAuth callback
      *
-     * @var array|null
+     * @return string
      */
-    private $credentials = null;
-
-    /**
-     * Cached access token
-     *
-     * @var string|null
-     */
-    private $access_token = null;
-
-    /**
-     * Constructor
-     */
-    public function __construct() {
-        $creds_json = get_option( 'gclid_tracker_google_credentials', '' );
-        if ( ! empty( $creds_json ) ) {
-            $this->credentials = json_decode( $creds_json, true );
-        }
+    public function get_redirect_uri() {
+        return admin_url( 'admin.php?page=gclid-tracker-settings&gclid_oauth_callback=1' );
     }
 
     /**
-     * Check if credentials are configured
+     * Check if OAuth credentials (Client ID + Secret) are configured
      *
      * @return bool
      */
-    public function has_credentials() {
-        return ! empty( $this->credentials )
-            && isset( $this->credentials['client_email'] )
-            && isset( $this->credentials['private_key'] );
+    public function has_oauth_credentials() {
+        $client_id     = get_option( 'gclid_tracker_oauth_client_id', '' );
+        $client_secret = get_option( 'gclid_tracker_oauth_client_secret', '' );
+        return ! empty( $client_id ) && ! empty( $client_secret );
+    }
+
+    /**
+     * Check if the plugin is connected (has valid tokens)
+     *
+     * @return bool
+     */
+    public function is_connected() {
+        $refresh_token = get_option( 'gclid_tracker_oauth_refresh_token', '' );
+        return ! empty( $refresh_token );
     }
 
     /**
@@ -72,102 +74,214 @@ class GCLID_Sheets {
     public function is_configured() {
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sync_enabled   = get_option( 'gclid_tracker_sync_enabled', '0' );
-
-        return $this->has_credentials()
-            && ! empty( $spreadsheet_id )
-            && $sync_enabled === '1';
+        return $this->is_connected() && ! empty( $spreadsheet_id ) && $sync_enabled === '1';
     }
 
     /**
-     * Generate a JWT token for service account authentication
+     * Build the Google OAuth authorization URL
      *
-     * @return string JWT token
-     */
-    private function generate_jwt() {
-        $header = array(
-            'alg' => 'RS256',
-            'typ' => 'JWT',
-        );
-
-        $now = time();
-        $claims = array(
-            'iss'   => $this->credentials['client_email'],
-            'scope' => 'https://www.googleapis.com/auth/spreadsheets',
-            'aud'   => $this->token_url,
-            'iat'   => $now,
-            'exp'   => $now + 3600,
-        );
-
-        $header_encoded  = $this->base64url_encode( wp_json_encode( $header ) );
-        $claims_encoded  = $this->base64url_encode( wp_json_encode( $claims ) );
-        $signing_input   = $header_encoded . '.' . $claims_encoded;
-
-        // Sign with RSA-SHA256
-        $private_key = openssl_pkey_get_private( $this->credentials['private_key'] );
-        if ( ! $private_key ) {
-            return '';
-        }
-
-        $signature = '';
-        openssl_sign( $signing_input, $signature, $private_key, OPENSSL_ALGO_SHA256 );
-
-        return $signing_input . '.' . $this->base64url_encode( $signature );
-    }
-
-    /**
-     * Base64url encode
-     *
-     * @param string $data Data to encode
      * @return string
      */
-    private function base64url_encode( $data ) {
-        return rtrim( strtr( base64_encode( $data ), '+/', '-_' ), '=' );
+    public function get_authorization_url() {
+        $client_id = get_option( 'gclid_tracker_oauth_client_id', '' );
+
+        // Generate and store a state token to prevent CSRF
+        $state = wp_generate_password( 32, false );
+        set_transient( 'gclid_tracker_oauth_state', $state, 600 );
+
+        $params = array(
+            'client_id'             => $client_id,
+            'redirect_uri'          => $this->get_redirect_uri(),
+            'response_type'         => 'code',
+            'scope'                 => implode( ' ', $this->scopes ),
+            'access_type'           => 'offline',   // Request refresh token
+            'prompt'                => 'consent',   // Force consent to always get refresh token
+            'state'                 => $state,
+        );
+
+        return $this->auth_url . '?' . http_build_query( $params );
     }
 
     /**
-     * Get an access token from Google OAuth2
+     * Exchange an authorization code for access + refresh tokens
      *
-     * @return string|false Access token or false on failure
+     * @param string $code  Authorization code from Google
+     * @param string $state State parameter for CSRF validation
+     * @return array Result with 'success' and 'message'
      */
-    private function get_access_token() {
-        // Check cached token
-        $cached = get_transient( 'gclid_tracker_access_token' );
-        if ( $cached ) {
-            return $cached;
+    public function exchange_code( $code, $state ) {
+        // Validate state to prevent CSRF
+        $stored_state = get_transient( 'gclid_tracker_oauth_state' );
+        delete_transient( 'gclid_tracker_oauth_state' );
+
+        if ( empty( $stored_state ) || ! hash_equals( $stored_state, $state ) ) {
+            return array(
+                'success' => false,
+                'message' => 'Invalid OAuth state parameter. Please try connecting again.',
+            );
         }
 
-        if ( ! $this->has_credentials() ) {
-            return false;
-        }
-
-        $jwt = $this->generate_jwt();
-        if ( empty( $jwt ) ) {
-            return false;
-        }
+        $client_id     = get_option( 'gclid_tracker_oauth_client_id', '' );
+        $client_secret = get_option( 'gclid_tracker_oauth_client_secret', '' );
 
         $response = wp_remote_post( $this->token_url, array(
             'body' => array(
-                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                'assertion'  => $jwt,
+                'code'          => $code,
+                'client_id'     => $client_id,
+                'client_secret' => $client_secret,
+                'redirect_uri'  => $this->get_redirect_uri(),
+                'grant_type'    => 'authorization_code',
             ),
             'timeout' => 30,
         ) );
 
         if ( is_wp_error( $response ) ) {
-            $this->log_error( 'Token request failed: ' . $response->get_error_message() );
+            return array(
+                'success' => false,
+                'message' => 'Token exchange failed: ' . $response->get_error_message(),
+            );
+        }
+
+        $code_http = wp_remote_retrieve_response_code( $response );
+        $body      = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( $code_http !== 200 || empty( $body['access_token'] ) ) {
+            $error = isset( $body['error_description'] ) ? $body['error_description'] : ( isset( $body['error'] ) ? $body['error'] : 'Unknown error' );
+            return array(
+                'success' => false,
+                'message' => 'Google returned an error: ' . $error,
+            );
+        }
+
+        // Store tokens
+        update_option( 'gclid_tracker_oauth_access_token', $body['access_token'] );
+        update_option( 'gclid_tracker_oauth_token_expiry', time() + (int) $body['expires_in'] - 60 );
+
+        if ( ! empty( $body['refresh_token'] ) ) {
+            update_option( 'gclid_tracker_oauth_refresh_token', $body['refresh_token'] );
+        }
+
+        // Get the connected account email
+        $email = $this->get_connected_email( $body['access_token'] );
+        if ( $email ) {
+            update_option( 'gclid_tracker_oauth_connected_email', $email );
+        }
+
+        return array(
+            'success' => true,
+            'message' => 'Successfully connected to Google.',
+            'email'   => $email,
+        );
+    }
+
+    /**
+     * Get the Google account email for the connected token
+     *
+     * @param string $access_token
+     * @return string|false
+     */
+    private function get_connected_email( $access_token ) {
+        $response = wp_remote_get( 'https://www.googleapis.com/oauth2/v3/userinfo', array(
+            'headers' => array( 'Authorization' => 'Bearer ' . $access_token ),
+            'timeout' => 15,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
             return false;
         }
 
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        return isset( $body['email'] ) ? $body['email'] : false;
+    }
 
-        if ( isset( $body['access_token'] ) ) {
-            $expires_in = isset( $body['expires_in'] ) ? (int) $body['expires_in'] - 60 : 3500;
-            set_transient( 'gclid_tracker_access_token', $body['access_token'], $expires_in );
+    /**
+     * Get a valid access token, refreshing if necessary
+     *
+     * @return string|false
+     */
+    private function get_access_token() {
+        // Check if current access token is still valid
+        $access_token = get_option( 'gclid_tracker_oauth_access_token', '' );
+        $expiry       = (int) get_option( 'gclid_tracker_oauth_token_expiry', 0 );
+
+        if ( ! empty( $access_token ) && time() < $expiry ) {
+            return $access_token;
+        }
+
+        // Refresh the token
+        return $this->refresh_access_token();
+    }
+
+    /**
+     * Refresh the access token using the refresh token
+     *
+     * @return string|false New access token or false on failure
+     */
+    private function refresh_access_token() {
+        $refresh_token = get_option( 'gclid_tracker_oauth_refresh_token', '' );
+        $client_id     = get_option( 'gclid_tracker_oauth_client_id', '' );
+        $client_secret = get_option( 'gclid_tracker_oauth_client_secret', '' );
+
+        if ( empty( $refresh_token ) || empty( $client_id ) || empty( $client_secret ) ) {
+            return false;
+        }
+
+        $response = wp_remote_post( $this->token_url, array(
+            'body' => array(
+                'refresh_token' => $refresh_token,
+                'client_id'     => $client_id,
+                'client_secret' => $client_secret,
+                'grant_type'    => 'refresh_token',
+            ),
+            'timeout' => 30,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            $this->log_error( 'Token refresh failed: ' . $response->get_error_message() );
+            return false;
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( $code === 200 && ! empty( $body['access_token'] ) ) {
+            update_option( 'gclid_tracker_oauth_access_token', $body['access_token'] );
+            update_option( 'gclid_tracker_oauth_token_expiry', time() + (int) $body['expires_in'] - 60 );
             return $body['access_token'];
         }
 
-        $this->log_error( 'Token response error: ' . wp_json_encode( $body ) );
+        // If refresh token is invalid/revoked, clear connection
+        if ( isset( $body['error'] ) && in_array( $body['error'], array( 'invalid_grant', 'invalid_token' ), true ) ) {
+            $this->disconnect();
+        }
+
+        $this->log_error( 'Token refresh error: ' . wp_json_encode( $body ) );
         return false;
+    }
+
+    /**
+     * Disconnect (revoke tokens and clear stored data)
+     *
+     * @return bool
+     */
+    public function disconnect() {
+        $access_token = get_option( 'gclid_tracker_oauth_access_token', '' );
+
+        // Attempt to revoke the token at Google
+        if ( ! empty( $access_token ) ) {
+            wp_remote_post( $this->revoke_url, array(
+                'body'    => array( 'token' => $access_token ),
+                'timeout' => 10,
+            ) );
+        }
+
+        // Clear all stored token data
+        delete_option( 'gclid_tracker_oauth_access_token' );
+        delete_option( 'gclid_tracker_oauth_token_expiry' );
+        delete_option( 'gclid_tracker_oauth_refresh_token' );
+        delete_option( 'gclid_tracker_oauth_connected_email' );
+
+        return true;
     }
 
     /**
@@ -176,11 +290,18 @@ class GCLID_Sheets {
      * @return array Result with 'success' and 'message' keys
      */
     public function test_connection() {
+        if ( ! $this->is_connected() ) {
+            return array(
+                'success' => false,
+                'message' => 'Not connected to Google. Please connect your account first.',
+            );
+        }
+
         $token = $this->get_access_token();
         if ( ! $token ) {
             return array(
                 'success' => false,
-                'message' => 'Failed to obtain access token. Please check your service account credentials.',
+                'message' => 'Failed to obtain a valid access token. Please reconnect your Google account.',
             );
         }
 
@@ -195,9 +316,7 @@ class GCLID_Sheets {
         $url = $this->api_base . '/' . $spreadsheet_id . '?fields=properties.title,sheets.properties.title';
 
         $response = wp_remote_get( $url, array(
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $token,
-            ),
+            'headers' => array( 'Authorization' => 'Bearer ' . $token ),
             'timeout' => 30,
         ) );
 
@@ -212,7 +331,7 @@ class GCLID_Sheets {
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
         if ( $code === 200 ) {
-            $title = isset( $body['properties']['title'] ) ? $body['properties']['title'] : 'Unknown';
+            $title  = isset( $body['properties']['title'] ) ? $body['properties']['title'] : 'Unknown';
             $sheets = array();
             if ( isset( $body['sheets'] ) ) {
                 foreach ( $body['sheets'] as $sheet ) {
@@ -221,9 +340,23 @@ class GCLID_Sheets {
             }
             return array(
                 'success'     => true,
-                'message'     => 'Successfully connected to spreadsheet: "' . esc_html( $title ) . '"',
+                'message'     => 'Successfully connected to: "' . esc_html( $title ) . '"',
                 'title'       => $title,
                 'sheet_names' => $sheets,
+            );
+        }
+
+        if ( $code === 403 ) {
+            return array(
+                'success' => false,
+                'message' => 'Access denied. Make sure your Google account has access to this spreadsheet.',
+            );
+        }
+
+        if ( $code === 404 ) {
+            return array(
+                'success' => false,
+                'message' => 'Spreadsheet not found. Please check the Spreadsheet ID.',
             );
         }
 
@@ -247,10 +380,8 @@ class GCLID_Sheets {
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-
-        // Check if row 1 has data
-        $range = $sheet_name . '!A1:T1';
-        $url   = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range );
+        $range          = $sheet_name . '!A1:I1';
+        $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range );
 
         $response = wp_remote_get( $url, array(
             'headers' => array( 'Authorization' => 'Bearer ' . $token ),
@@ -263,44 +394,28 @@ class GCLID_Sheets {
 
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        // If no values, write headers
         if ( empty( $body['values'] ) ) {
+            // Write headers matching the exact column layout in the spreadsheet:
+            // A=GCLID, B=(empty), C=FBCLID, D=MSCLKID, E=utm_source,
+            // F=utm_medium, G=utm_campaign, H=utm_term, I=utm_content
             $headers = array( array(
-                'ID',
-                'GCLID',
-                'FBCLID',
-                'MSCLKID',
-                'Landing Page',
-                'Referrer',
-                'UTM Source',
-                'UTM Medium',
-                'UTM Campaign',
-                'UTM Term',
-                'UTM Content',
-                'IP Address',
-                'Country',
-                'City',
-                'Device Type',
-                'Browser',
-                'OS',
-                'User Agent',
-                'Captured At',
+                'GCLID', '', 'FBCLID', 'MSCLKID',
+                'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
             ) );
-
-            return $this->write_rows( $range, $headers );
+            return $this->put_values( $range, $headers );
         }
 
         return true;
     }
 
     /**
-     * Write rows to a range
+     * PUT values to a specific range
      *
      * @param string $range  Sheet range
      * @param array  $values Row values
      * @return bool
      */
-    private function write_rows( $range, $values ) {
+    private function put_values( $range, $values ) {
         $token = $this->get_access_token();
         if ( ! $token ) {
             return false;
@@ -337,15 +452,14 @@ class GCLID_Sheets {
         if ( ! $token ) {
             return array(
                 'success' => false,
-                'message' => 'Failed to obtain access token.',
+                'message' => 'Failed to obtain access token. Please reconnect your Google account.',
             );
         }
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-        $range          = $sheet_name . '!A:S';
-
-        $url = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range ) . ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
+        $range          = $sheet_name . '!A:I';
+        $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range ) . ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
 
         $response = wp_remote_post( $url, array(
             'headers' => array(
@@ -392,26 +506,21 @@ class GCLID_Sheets {
      * @return array Row values
      */
     public function capture_to_row( $capture ) {
+        // Column order matches the spreadsheet exactly:
+        // A=GCLID, B=(empty), C=FBCLID, D=MSCLKID,
+        // E=utm_source, F=utm_medium, G=utm_campaign, H=utm_term, I=utm_content
+        // Only the value is written — no variable name prefix.
+        // If a parameter was not present in the URL, the cell is left blank ('').
         return array(
-            isset( $capture['id'] ) ? $capture['id'] : '',
-            isset( $capture['gclid'] ) ? $capture['gclid'] : '',
-            isset( $capture['fbclid'] ) ? $capture['fbclid'] : '',
-            isset( $capture['msclkid'] ) ? $capture['msclkid'] : '',
-            isset( $capture['landing_page'] ) ? $capture['landing_page'] : '',
-            isset( $capture['referrer'] ) ? $capture['referrer'] : '',
-            isset( $capture['utm_source'] ) ? $capture['utm_source'] : '',
-            isset( $capture['utm_medium'] ) ? $capture['utm_medium'] : '',
-            isset( $capture['utm_campaign'] ) ? $capture['utm_campaign'] : '',
-            isset( $capture['utm_term'] ) ? $capture['utm_term'] : '',
-            isset( $capture['utm_content'] ) ? $capture['utm_content'] : '',
-            isset( $capture['ip_address'] ) ? $capture['ip_address'] : '',
-            isset( $capture['country'] ) ? $capture['country'] : '',
-            isset( $capture['city'] ) ? $capture['city'] : '',
-            isset( $capture['device_type'] ) ? $capture['device_type'] : '',
-            isset( $capture['browser'] ) ? $capture['browser'] : '',
-            isset( $capture['os'] ) ? $capture['os'] : '',
-            isset( $capture['user_agent'] ) ? $capture['user_agent'] : '',
-            isset( $capture['captured_at'] ) ? $capture['captured_at'] : '',
+            $capture['gclid']        ?? '',   // A: GCLID
+            '',                               // B: (empty column — reserved)
+            $capture['fbclid']       ?? '',   // C: FBCLID
+            $capture['msclkid']      ?? '',   // D: MSCLKID
+            $capture['utm_source']   ?? '',   // E: utm_source
+            $capture['utm_medium']   ?? '',   // F: utm_medium
+            $capture['utm_campaign'] ?? '',   // G: utm_campaign
+            $capture['utm_term']     ?? '',   // H: utm_term
+            $capture['utm_content']  ?? '',   // I: utm_content
         );
     }
 
@@ -429,7 +538,6 @@ class GCLID_Sheets {
             );
         }
 
-        // Ensure headers exist
         $this->ensure_headers();
 
         $db       = new GCLID_DB();
@@ -471,7 +579,7 @@ class GCLID_Sheets {
     /**
      * Log an error message
      *
-     * @param string $message Error message
+     * @param string $message
      */
     private function log_error( $message ) {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {

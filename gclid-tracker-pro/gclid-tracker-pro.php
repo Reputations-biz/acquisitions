@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GCLID Tracker Pro
  * Plugin URI: https://github.com/bdouglas73/acquisitions
- * Description: Captures Google Click ID (GCLID) and UTM parameters from all website visitors and syncs the data to a Google Spreadsheet in real-time. Includes a full admin dashboard, local logging, CSV export, and data retention management.
- * Version: 1.0.0
+ * Description: Captures Google Click ID (GCLID) and UTM parameters from all website visitors and syncs the data to a Google Spreadsheet in real-time. Connect your Google account with one click — no service accounts or JSON files required. Includes a full admin dashboard, local logging, CSV export, and data retention management.
+ * Version: 1.2.0
  * Author: Brian Douglas
  * Author URI: https://github.com/bdouglas73
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'GCLID_TRACKER_VERSION', '1.0.0' );
+define( 'GCLID_TRACKER_VERSION', '1.2.0' );
 define( 'GCLID_TRACKER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GCLID_TRACKER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'GCLID_TRACKER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -41,18 +41,19 @@ function gclid_tracker_activate() {
     $db = new GCLID_DB();
     $db->create_table();
 
-    // Set default options
+    // Set default options (only if not already set)
     $defaults = array(
-        'gclid_tracker_capture_utms'        => '1',
-        'gclid_tracker_data_retention_days'  => '90',
-        'gclid_tracker_enable_ip_logging'    => '1',
-        'gclid_tracker_sync_enabled'         => '0',
-        'gclid_tracker_spreadsheet_id'       => '',
-        'gclid_tracker_sheet_name'           => 'Sheet1',
-        'gclid_tracker_google_credentials'   => '',
-        'gclid_tracker_capture_all_visits'   => '0',
-        'gclid_tracker_capture_fbclid'       => '1',
-        'gclid_tracker_capture_msclkid'      => '1',
+        'gclid_tracker_capture_utms'          => '1',
+        'gclid_tracker_data_retention_days'   => '90',
+        'gclid_tracker_enable_ip_logging'     => '1',
+        'gclid_tracker_sync_enabled'          => '0',
+        'gclid_tracker_spreadsheet_id'        => '',
+        'gclid_tracker_sheet_name'            => 'Sheet1',
+        'gclid_tracker_oauth_client_id'       => '',
+        'gclid_tracker_oauth_client_secret'   => '',
+        'gclid_tracker_capture_all_visits'    => '0',
+        'gclid_tracker_capture_fbclid'        => '1',
+        'gclid_tracker_capture_msclkid'       => '1',
     );
 
     foreach ( $defaults as $key => $value ) {
@@ -61,7 +62,7 @@ function gclid_tracker_activate() {
         }
     }
 
-    // Schedule cleanup cron
+    // Schedule daily cleanup cron
     if ( ! wp_next_scheduled( 'gclid_tracker_daily_cleanup' ) ) {
         wp_schedule_event( time(), 'daily', 'gclid_tracker_daily_cleanup' );
     }
