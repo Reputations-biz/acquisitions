@@ -380,7 +380,7 @@ class GCLID_Sheets {
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-        $range          = $sheet_name . '!A1:I1';
+        $range          = $sheet_name . '!A1:H1';
         $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range );
 
         $response = wp_remote_get( $url, array(
@@ -396,10 +396,10 @@ class GCLID_Sheets {
 
         if ( empty( $body['values'] ) ) {
             // Write headers matching the exact column layout in the spreadsheet:
-            // A=GCLID, B=(empty), C=FBCLID, D=MSCLKID, E=utm_source,
-            // F=utm_medium, G=utm_campaign, H=utm_term, I=utm_content
+            // A=GCLID, B=FBCLID, C=MSCLKID, D=utm_source,
+            // E=utm_medium, F=utm_campaign, G=utm_term, H=utm_content
             $headers = array( array(
-                'GCLID', '', 'FBCLID', 'MSCLKID',
+                'GCLID', 'FBCLID', 'MSCLKID',
                 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
             ) );
             return $this->put_values( $range, $headers );
@@ -458,7 +458,7 @@ class GCLID_Sheets {
 
         $spreadsheet_id = get_option( 'gclid_tracker_spreadsheet_id', '' );
         $sheet_name     = get_option( 'gclid_tracker_sheet_name', 'Sheet1' );
-        $range          = $sheet_name . '!A:I';
+        $range          = $sheet_name . '!A:H';
         $url            = $this->api_base . '/' . $spreadsheet_id . '/values/' . urlencode( $range ) . ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
 
         $response = wp_remote_post( $url, array(
@@ -506,21 +506,20 @@ class GCLID_Sheets {
      * @return array Row values
      */
     public function capture_to_row( $capture ) {
-        // Column order matches the spreadsheet exactly:
-        // A=GCLID, B=(empty), C=FBCLID, D=MSCLKID,
-        // E=utm_source, F=utm_medium, G=utm_campaign, H=utm_term, I=utm_content
-        // Only the value is written — no variable name prefix.
+        // Column order matches the spreadsheet exactly (8 columns, no gaps):
+        // A=GCLID, B=FBCLID, C=MSCLKID,
+        // D=utm_source, E=utm_medium, F=utm_campaign, G=utm_term, H=utm_content
+        // Only the raw value is written — no variable name prefix.
         // If a parameter was not present in the URL, the cell is left blank ('').
         return array(
             $capture['gclid']        ?? '',   // A: GCLID
-            '',                               // B: (empty column — reserved)
-            $capture['fbclid']       ?? '',   // C: FBCLID
-            $capture['msclkid']      ?? '',   // D: MSCLKID
-            $capture['utm_source']   ?? '',   // E: utm_source
-            $capture['utm_medium']   ?? '',   // F: utm_medium
-            $capture['utm_campaign'] ?? '',   // G: utm_campaign
-            $capture['utm_term']     ?? '',   // H: utm_term
-            $capture['utm_content']  ?? '',   // I: utm_content
+            $capture['fbclid']       ?? '',   // B: FBCLID
+            $capture['msclkid']      ?? '',   // C: MSCLKID
+            $capture['utm_source']   ?? '',   // D: utm_source
+            $capture['utm_medium']   ?? '',   // E: utm_medium
+            $capture['utm_campaign'] ?? '',   // F: utm_campaign
+            $capture['utm_term']     ?? '',   // G: utm_term
+            $capture['utm_content']  ?? '',   // H: utm_content
         );
     }
 
